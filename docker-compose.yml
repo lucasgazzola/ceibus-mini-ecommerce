@@ -1,0 +1,29 @@
+services:
+  postgres:
+    container_name: ceibus-postgres
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ceibus
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+
+  api:
+    container_name: ceibus-api
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ceibus
+      JWT_SECRET: change-me
+      JWT_EXPIRES_IN: 30m
+      NODE_ENV: development
+    ports:
+      - '3000:3000'
+
+volumes:
+  db-data:
