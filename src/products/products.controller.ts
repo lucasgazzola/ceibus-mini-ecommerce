@@ -32,7 +32,7 @@ export class ProductsController {
   @ApiQuery({
     name: 'q',
     required: false,
-    description: 'Texto a buscar en nombre/descr.',
+    description: 'Texto a buscar en nombre',
   })
   @UseGuards(JwtAuthGuard)
   @Get()
