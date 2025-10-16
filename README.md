@@ -73,13 +73,13 @@ El filtro se aplica globalmente en `src/main.ts` con `app.useGlobalFilters(new A
 - Tests: unit tests (Jest) para `ProductsService` y `OrdersService`. Tests e2e usan `FakePrismaService` para evitar dependencia de Postgres.
 - FakePrismaService: diseñado para emular solo lo necesario en e2e (findMany con filtros básicos, create/update de entidades y transacciones simples con `$transaction(fn)`).
 
-## Estructura de carpetas (rápida)
+## Estructura de carpetas
 
-- src/auth — autenticación, token service, hashing
+- src/auth — autenticación, guards, DTOs, token service, hashing
 - src/products — controlador, servicio, DTOs, repositorios
 - src/orders — controlador, servicio, DTOs, repositorios
 - src/prisma — PrismaService y módulo para inyección
-- src/users — controlador y servicio de usuarios
+- src/users — controlador, servicio, DTOs, repositorios
 - src/common/filters — `AllExceptionsFilter`
 
 ## Cómo correr (local)
