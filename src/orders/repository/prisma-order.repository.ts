@@ -21,8 +21,7 @@ export class PrismaOrderRepository implements OrderRepository {
     })
 
     if (products.length !== productIds.length) {
-      const missing = productIds.filter(id => !products.some(p => p.id === id))
-      throw new NotFoundException(`Products not found: ${missing.join(', ')}`)
+      throw new NotFoundException("Some products don't exist or are duplicated")
     }
 
     // Creamos un mapa para acceso rápido
