@@ -12,23 +12,16 @@ import {
   UseGuards,
 } from '@nestjs/common'
 import { ApiQuery } from '@nestjs/swagger'
-import { ProductsService } from './products.service'
+import { UserRole } from '../utils/enums'
+import { AdminGuard } from '../auth/guards/admin.guard'
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
 import { CreateProductDto } from './dto/create-product.dto'
 import { UpdateProductDto } from './dto/update-product.dto'
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'
-import { UserRole } from '../utils/enums'
+import { ProductsService } from './products.service'
 
 @Controller('products')
 export class ProductsController {
   constructor(private productsService: ProductsService) {}
-
-  @UseGuards(JwtAuthGuard)
-  @Post()
-  async create(@Req() req: any, @Body() dto: CreateProductDto) {
-    const role = req.user?.role
-    if (role !== UserRole.ADMIN) throw new ForbiddenException()
-    return this.productsService.create(dto)
-  }
 
   @ApiQuery({
     name: 'is_active',
@@ -41,33 +34,47 @@ export class ProductsController {
     required: false,
     description: 'Texto a buscar en nombre/descr.',
   })
+  @UseGuards(JwtAuthGuard)
   @Get()
-  async getAll(@Query('q') q?: string, @Query('is_active') isActive?: boolean) {
-    return this.productsService.getAll(q, isActive)
+  async getAll(
+    @Req() req: any,
+    @Query('q') q?: string,
+    @Query('is_active') isActive?: boolean
+  ) {
+    // El filtro `is_active` solo puede ser usado por ADMINs
+    const isAdmin = req.user?.role === UserRole.ADMIN
+    if (typeof isActive !== 'undefined') {
+      if (!isAdmin && isActive !== true)
+        throw new ForbiddenException('Only admins can filter by is_active')
+    }
+    return this.productsService.getAll(q, isAdmin ? isActive : true)
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async getById(@Param('id') id: string) {
     return this.productsService.getById(id)
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @Post()
+  async create(@Req() req: any, @Body() dto: CreateProductDto) {
+    return this.productsService.create(dto)
+  }
+
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Patch(':id')
   async updateById(
     @Req() req: any,
     @Param('id') id: string,
     @Body() dto: UpdateProductDto
   ) {
-    const role = req.user?.role
-    if (role !== UserRole.ADMIN) throw new ForbiddenException()
     return this.productsService.updateById(id, dto)
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Delete(':id')
   async delete(@Req() req: any, @Param('id') id: string) {
-    const role = req.user?.role
-    if (role !== UserRole.ADMIN) throw new ForbiddenException()
     return this.productsService.deleteById(id)
   }
 }

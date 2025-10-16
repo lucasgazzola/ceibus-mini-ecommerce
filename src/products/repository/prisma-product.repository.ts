@@ -1,10 +1,9 @@
+import { Product } from '@prisma/client'
 import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
-import { ProductRepository } from './product.repository'
-
 import { UpdateProductDto } from '../dto/update-product.dto'
 import { CreateProductDto } from '../dto/create-product.dto'
-import { Product } from '@prisma/client'
+import { ProductRepository } from './product.repository'
 
 @Injectable()
 export class PrismaProductRepository implements ProductRepository {
@@ -30,6 +29,12 @@ export class PrismaProductRepository implements ProductRepository {
   }
 
   async deleteById(id: string): Promise<void> {
-    await this.prisma.product.delete({ where: { id } })
+    // Soft-delete: marcar como inactivo en lugar de eliminar para evitar
+    // violaciones de clave foránea si el producto ya está referenciado
+    // por pedidos (OrderItem). Esto preserve el historial de pedidos.
+    await this.prisma.product.update({
+      where: { id },
+      data: { isActive: false },
+    })
   }
 }

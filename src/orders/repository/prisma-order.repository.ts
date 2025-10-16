@@ -1,13 +1,13 @@
+import { Order, OrderItem } from '@prisma/client'
 import {
   Injectable,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common'
+import { OrderStatus, UserRole } from '../../utils/enums'
 import { PrismaService } from '../../prisma/prisma.service'
-import { OrderRepository } from './order.repository'
-import { Order, OrderItem } from '@prisma/client'
 import { CreateOrderDto } from '../dto/create-order.dto'
-import { OrderStatus } from '../../utils/enums'
+import { OrderRepository } from './order.repository'
 
 @Injectable()
 export class PrismaOrderRepository implements OrderRepository {
@@ -28,7 +28,7 @@ export class PrismaOrderRepository implements OrderRepository {
     // Creamos un mapa para acceso rápido
     const productMap = new Map(products.map(p => [p.id, p]))
 
-    // Validamos stock antes de abrir la transacción (fail fast)
+    // Validamos stock antes de abrir la transacción
     for (const item of dto.items) {
       const product = productMap.get(item.product_id)!
       if (product.stock < item.quantity) {
@@ -38,13 +38,13 @@ export class PrismaOrderRepository implements OrderRepository {
       }
     }
 
-    // Calculamos el total antes de la transacción (más claro)
+    // Calculamos el total antes de la transacción
     const totalCents = dto.items.reduce((acc, item) => {
       const product = productMap.get(item.product_id)!
       return acc + item.quantity * product.priceCents
     }, 0)
 
-    // Ejecutamos la transacción atómica
+    // Ejecutamos la transacción
     const order = await this.prisma.$transaction(async tx => {
       const createdOrder = await tx.order.create({
         data: {
@@ -82,13 +82,13 @@ export class PrismaOrderRepository implements OrderRepository {
 
   async getAll(
     userId: string,
-    isAdmin: boolean,
+    userRole: UserRole,
     status?: OrderStatus
   ): Promise<Order[]> {
     return this.prisma.order.findMany({
       where: {
         status: status ?? undefined,
-        userId: isAdmin ? undefined : userId,
+        userId: userRole === UserRole.ADMIN ? undefined : userId,
       },
       include: { items: true },
     })

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { OrderRepository } from './repository/order.repository'
 import { CreateOrderDto } from './dto/create-order.dto'
-import { OrderStatus } from '../utils/enums'
+import { OrderRepository } from './repository/order.repository'
+import { OrderStatus, UserRole } from '../utils/enums'
 
 @Injectable()
 export class OrdersService {
@@ -11,8 +11,8 @@ export class OrdersService {
     return this.orderRepo.create(userId, dto)
   }
 
-  async getAll(userId: string, isAdmin: boolean, status?: OrderStatus) {
-    return this.orderRepo.getAll(userId, isAdmin, status)
+  async getAll(userId: string, userRole: UserRole, status?: OrderStatus) {
+    return this.orderRepo.getAll(userId, userRole, status)
   }
 
   async getById(id: string) {

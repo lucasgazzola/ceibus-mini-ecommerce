@@ -1,6 +1,6 @@
+import * as Joi from 'joi'
 import { Module } from '@nestjs/common'
 import { ConfigModule as NestConfigModule, ConfigService } from '@nestjs/config'
-import * as Joi from 'joi'
 import { TokenService } from '../auth/token.service'
 
 @Module({

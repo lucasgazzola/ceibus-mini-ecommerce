@@ -29,6 +29,8 @@ export class ProductsService {
   async deleteById(id: string) {
     const product = await this.getById(id)
     if (!product) throw new NotFoundException('Product not found')
+    if (product.isActive === false)
+      throw new NotFoundException('Product already inactive')
     await this.prodRepo.deleteById(id)
   }
 }
