@@ -1,123 +1,89 @@
 import { OrdersService } from './orders.service'
-import { BadRequestException } from '@nestjs/common'
-import { CreateOrderDto } from './dto/create-order.dto'
+import { OrderRepository } from './repository/order.repository'
+import { OrderStatus, UserRole } from '../utils/enums'
 
-type Product = { id: string; stock: number; priceCents: number }
-
-type MockRepo = {
-  product: { findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock }
-  order: {
-    create: jest.Mock
-    findMany: jest.Mock
-    findUnique: jest.Mock
-    update: jest.Mock
-  }
-  orderItem: { create: jest.Mock }
-  $transaction: jest.Mock
+class MockOrderRepo extends OrderRepository {
+  create: jest.Mock
+  getAll: jest.Mock
+  getById: jest.Mock
+  changeStatus: jest.Mock
 }
 
 describe('OrdersService', () => {
   let service: OrdersService
-  let mockRepo: MockRepo
+  const sampleOrder = {
+    id: 'o1',
+    userId: 'u1',
+    status: OrderStatus.PENDING,
+    totalCents: 1000,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+
+  const mockOrderRepo: MockOrderRepo = {
+    create: jest.fn().mockResolvedValue(sampleOrder),
+    getAll: jest.fn().mockResolvedValue([sampleOrder]),
+    getById: jest.fn().mockResolvedValue(sampleOrder),
+    changeStatus: jest
+      .fn()
+      .mockResolvedValue({ ...sampleOrder, status: OrderStatus.PAID }),
+  }
 
   beforeEach(() => {
-    mockRepo = {
-      product: {
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      order: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      orderItem: { create: jest.fn() },
-      $transaction: jest.fn(),
-    }
-    // Crear un wrapper que actúe como OrderRepository delegando en el mockRepo
-    const orderRepo = {
-      create: async (userId: string, dto: CreateOrderDto) => {
-        // La implementación del test usa mockRepo.product.findMany, mockRepo.$transaction, etc.
-        const productIds = dto.items.map(i => i.product_id)
-        const products: Product[] = await mockRepo.product.findMany({
-          where: { id: { in: productIds } },
-        })
-        const prodMap = new Map<string, Product>(products.map(p => [p.id, p]))
-
-        for (const item of dto.items) {
-          const product = prodMap.get(item.product_id)
-          if (!product) throw new Error(`Product ${item.product_id} not found`)
-          if (product.stock < item.quantity)
-            throw new BadRequestException(
-              `Insufficient stock for product ${product.id}`
-            )
-        }
-
-        const result = await mockRepo.$transaction(async (transaction: any) => {
-          const total = dto.items.reduce((acc, item) => {
-            const product = prodMap.get(item.product_id)
-            return acc + item.quantity * product.priceCents
-          }, 0)
-
-          const order = await mockRepo.order.create({
-            data: { userId, totalCents: total },
-          })
-
-          for (const item of dto.items) {
-            const product: Product | undefined = prodMap.get(item.product_id)
-            await mockRepo.orderItem.create({
-              data: {
-                orderId: order.id,
-                productId: product.id,
-                quantity: item.quantity,
-                unitPriceCents: product.priceCents,
-              },
-            })
-            await mockRepo.product.update({
-              where: { id: product.id },
-              data: { stock: product.stock - item.quantity },
-            })
-          }
-
-          return order
-        })
-
-        return result
-      },
-      findAll: (userId: string, isAdmin: boolean, status?: any) =>
-        mockRepo.order.findMany(),
-      findOne: (id: string) => mockRepo.order.findUnique({ where: { id } }),
-      changeStatus: (id: string, newStatus: any) =>
-        mockRepo.order.update({ where: { id }, data: { status: newStatus } }),
-    }
-
-    service = new OrdersService(orderRepo as any)
+    jest.clearAllMocks()
+    service = new OrdersService(mockOrderRepo as any)
   })
 
-  it('creates order when stock is sufficient', async () => {
-    const products: Product[] = [{ id: 'p1', stock: 5, priceCents: 100 }]
-    mockRepo.product.findMany.mockResolvedValue(products)
-    mockRepo.order.create.mockResolvedValue({ id: 'order1' })
-    mockRepo.$transaction.mockImplementation(async fn => fn(mockRepo))
-    const dto: CreateOrderDto = {
-      items: [{ product_id: 'p1', quantity: 2 }],
-    }
-    const res = await service.create('u1', dto)
-    expect(mockRepo.$transaction).toHaveBeenCalled()
-    expect(mockRepo.order.create).toHaveBeenCalledWith({
-      data: { userId: 'u1', totalCents: 200 },
+  it('Debería crear un pedido', async () => {
+    const dto = { items: [{ product_id: 'p1', quantity: 1 }] }
+    const res = await service.create('u1', dto as any)
+    expect(res).toBeDefined()
+    expect(mockOrderRepo.create).toHaveBeenCalled()
+  })
+
+  it('Debería obtener todos los pedidos', async () => {
+    const res = await service.getAll('u1', UserRole.USER)
+    expect(res).toBeDefined()
+    expect(Array.isArray(res)).toBe(true)
+    expect(mockOrderRepo.getAll).toHaveBeenCalled()
+  })
+
+  it('Debería obtener un pedido por id', async () => {
+    const res = await service.getById('o1')
+    expect(res).toBeDefined()
+    expect(res.id).toBe('o1')
+    expect(mockOrderRepo.getById).toHaveBeenCalled()
+  })
+
+  it('Debería lanzar un error si no encuentra un pedido por id', async () => {
+    mockOrderRepo.getById.mockResolvedValueOnce(null)
+    await expect(service.getById('nope')).rejects.toThrow('Order not found')
+    expect(mockOrderRepo.getById).toHaveBeenCalled()
+  })
+
+  it('Debería cambiar el estado de un pedido', async () => {
+    const res = await service.changeStatus('o1', OrderStatus.PAID)
+    expect(res).toBeDefined()
+    expect(mockOrderRepo.changeStatus).toHaveBeenCalled()
+    expect(res.status).toBe(OrderStatus.PAID)
+  })
+  it('Debería lanzar un error si no encuentra un pedido para cambiar estado', async () => {
+    mockOrderRepo.getById.mockResolvedValueOnce(null)
+    await expect(
+      service.changeStatus('nope', OrderStatus.PAID)
+    ).rejects.toThrow('Order not found')
+    expect(mockOrderRepo.getById).toHaveBeenCalled()
+    expect(mockOrderRepo.changeStatus).not.toHaveBeenCalled()
+  })
+  it('Debería lanzar un error si el pedido no está en estado PENDING al cambiar estado', async () => {
+    mockOrderRepo.getById.mockResolvedValueOnce({
+      ...sampleOrder,
+      status: OrderStatus.PAID,
     })
-    expect(res).toEqual({ id: 'order1' })
-  })
-
-  it('throws when stock insufficient', async () => {
-    const products: Product[] = [{ id: 'p1', stock: 1, priceCents: 100 }]
-    mockRepo.product.findMany.mockResolvedValue(products)
-    const dto: CreateOrderDto = {
-      items: [{ product_id: 'p1', quantity: 2 }],
-    }
-    await expect(service.create('u1', dto)).rejects.toThrow(BadRequestException)
+    await expect(
+      service.changeStatus('o1', OrderStatus.CANCELLED)
+    ).rejects.toThrow('Only PENDING orders can change status')
+    expect(mockOrderRepo.getById).toHaveBeenCalled()
+    expect(mockOrderRepo.changeStatus).not.toHaveBeenCalled()
   })
 })

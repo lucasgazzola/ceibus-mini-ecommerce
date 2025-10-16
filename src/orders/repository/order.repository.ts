@@ -10,5 +10,9 @@ export abstract class OrderRepository {
     status?: OrderStatus
   ): Promise<Order[]>
   abstract getById(id: string): Promise<Order | null>
-  abstract changeStatus(id: string, newStatus: OrderStatus): Promise<Order>
+  abstract changeStatus(
+    id: string,
+    order: Order,
+    newStatus: OrderStatus
+  ): Promise<Order>
 }

@@ -60,7 +60,7 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Patch(':id/:status')
   async changeStatus(
-    @Req() req: any,
+    @Req() _req: any,
     @Param('id') id: string,
     @Param('status') status: OrderStatus
   ) {

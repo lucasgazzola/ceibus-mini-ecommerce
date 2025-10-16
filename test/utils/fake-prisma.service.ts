@@ -61,19 +61,24 @@ export class FakePrismaService {
     return product
   }
 
-  async product_findMany({
-    where,
-  }: {
-    where?: { name?: { contains?: string }; isActive?: boolean }
-  }) {
-    const items = [...this.products.values()]
+  async product_findMany({ where }: { where?: any }) {
+    let items = [...this.products.values()]
     if (!where) return items
-    return items.filter(p => {
-      if (where.name && where.name.contains)
-        return p.name.includes(where.name.contains)
-      if (where.isActive !== undefined) return p.isActive === where.isActive
-      return true
-    })
+
+    // support Prisma-like filters used in repository: { id: { in: [...] } }
+    if (where.id && where.id.in) {
+      items = items.filter(p => where.id.in.includes(p.id))
+    }
+
+    if (where.name && where.name.contains) {
+      items = items.filter(p => p.name.includes(where.name.contains))
+    }
+
+    if (where.isActive !== undefined) {
+      items = items.filter(p => p.isActive === where.isActive)
+    }
+
+    return items
   }
 
   async product_findUnique({ where }: { where: { id: string } }) {
@@ -88,7 +93,7 @@ export class FakePrismaService {
     data: Partial<Product>
   }) {
     const p = this.products.get(where.id)
-    if (!p) throw new Error('Not found')
+    if (!p) throw new Error('Product not found')
     const updated: Product = { ...p, ...data, updatedAt: new Date() }
     this.products.set(where.id, updated)
     return updated

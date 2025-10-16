@@ -12,47 +12,48 @@ Este repositorio contiene la solución al desafío técnico de Ceibus Tech: una 
 
 ## Requisitos
 
+# Ceibus Mini E‑commerce — Backend (NestJS)
+
+Este repositorio contiene la solución al desafío técnico de Ceibus Tech: una API REST construida con NestJS + TypeScript, Prisma + PostgreSQL. Está pensada para ser fácil de ejecutar en local y en Docker, con autenticación JWT, validaciones, transacciones en pedidos y tests mínimos.
+
+## Contenido rápido
+
+- Código: `src/`
+- Esquema Prisma: `prisma/schema.prisma`
+- Seeds: `prisma/seed.js`
+- Tests: `test/` (unit + e2e usando FakePrismaService)
+- Docs: Swagger auto-generado en `/docs` cuando la app está corriendo
+
+## Requisitos
+
 - Node.js 18+ / npm
-- Docker & docker compose (para la opción con Docker)
+- Docker & docker compose (opcional)
 
 ## Variables de entorno
 
-No se deben hardcodear secretos en producción. Estas variables son necesarias al ejecutar la app (local o Docker):
+Copiar `.env.example` a `.env` y ajustar valores. Variables principales:
 
-- DATABASE_URL (obligatoria) — URL de conexión a PostgreSQL, p.ej. `postgresql://postgres:postgres@localhost:5432/ceibus`
-- JWT_SECRET (obligatoria) — secreto para firmar/verificar JWT
-- JWT_EXPIRES_IN (opcional) — duración del token (ej. `30m`). Default: `30m`.
-- NODE_ENV (opcional) — `development`|`production`. Default: `development`.
-- PORT (opcional) — puerto donde corre la API. Default: `3000`.
+- DATABASE_URL — URL de Postgres (ej: `postgresql://postgres:postgres@localhost:5432/ceibus`)
+- JWT_SECRET — secreto para firmar tokens (obligatorio)
+- JWT_EXPIRES_IN — duración del token (default: `30m`)
+- NODE_ENV — `development`|`production` (default: `development`)
+- PORT — puerto donde corre la API (default: `3000`)
 
-IMPORTANTE: El proyecto NO debería correr con secretos por defecto en entornos reales. El `docker-compose.yml` del repo incluye valores de ejemplo; cámbielos en despliegues reales.
+## Scripts útiles
 
-## Scripts útiles (package.json)
+- npm ci — instalar dependencias
+- npm run start:dev — iniciar en modo desarrollo (hot-reload)
+- npm run build — compilar a `dist/`
+- npm run start:prod — ejecutar producción
+- npm run prisma:generate — generar Prisma Client
+- npm run migrate — aplicar migraciones (deploy)
+- npm run migrate:dev — migración de desarrollo
+- npm run db:push — sincronizar esquema sin migraciones
+- npm run seed — ejecutar seed
+- npm run test — ejecutar tests unitarios
+- npm run test:e2e — ejecutar tests e2e (usa FakePrismaService)
 
-- npm run start:dev — inicia en modo desarrollo con hot-reload (nest)
-- npm run build — transpila TypeScript a `dist/`
-- npm run start:prod — ejecuta `dist/main.js`
-- npm run migrate — aplica migraciones (prisma migrate deploy)
-- npm run migrate:dev — crea/aplica migración de desarrollo
-- npm run seed — ejecuta el seed (usa `prisma/seed.js`)
-- npm run test — ejecuta tests (Jest)
-
-## Seeds y credenciales de prueba
-
-El seed crea usuarios y productos mínimos (ver `prisma/seed.js`):
-
-- admin@local.com / adminpass (role: ADMIN)
-- user1@local.com / userpass (role: USER)
-- user2@local.com / userpass (role: USER)
-
-Productos creados (IDs fijos):
-
-- id: `product-a` — Product A — priceCents: 1000 — stock: 10
-- id: `product-b` — Product B — priceCents: 2500 — stock: 5
-
-Estos credenciales se colocan acá solo para pruebas y deben cambiarse en producción.
-
-## Endpoints principales (resumen)
+## Endpoints principales
 
 Autenticación
 
@@ -63,44 +64,58 @@ Usuarios
 
 - GET /users/me — (auth) devuelve perfil del usuario autenticado
 
-Productos
+Productos (ADMIN)
 
-- POST /products — (ADMIN) crea producto
+- POST /products — crea producto
 - GET /products — lista productos (opciones: ?q=, ?is_active=)
 - GET /products/:id — obtiene producto
-- PATCH /products/:id — (ADMIN) actualiza
-- DELETE /products/:id — (ADMIN) elimina
+- PATCH /products/:id — actualiza producto
+- DELETE /products/:id — marca producto como inactivo
 
 Pedidos
 
 - POST /orders — (USER) crea pedido. Body: { items: [{ product_id, quantity }] }
 - GET /orders — USER: retorna propios; ADMIN: todos. Filtrar por ?status=
-- GET /orders/:id — obtiene pedido (ADMIN puede ver cualquier pedido;
-  USER solo si es propietario)
-- PATCH /orders/:id/:status — (ADMIN) cambiar estado: PENDING→PAID o PENDING→CANCELLED
+- GET /orders/:id — obtiene pedido (ADMIN puede ver cualquier pedido; USER solo si es propietario)
+- PATCH /orders/:id/status — (ADMIN) cambiar estado: PENDING→PAID o PENDING→CANCELLED
 
-Swagger UI disponible en `/docs` una vez que la app está corriendo.
+## Manejo global de errores
 
-## Reglas de negocio importantes (implementadas)
+El proyecto incluye un filtro global `AllExceptionsFilter` en `src/common/filters/all-exceptions.filter.ts`. Este filtro:
 
-- Validación de DTOs con `class-validator`.
-- Crear pedido:
-  - Se valida stock suficiente por ítem antes de la transacción.
-  - La creación del pedido y la reducción de stock se ejecutan dentro de una transacción Prisma ($transaction). Si algo falla, todo se revierte.
-  - Al crear, el pedido queda en estado `PENDING` y el stock se descuenta inmediatamente.
-  - `total_cents` se calcula como sum(items.quantity \* unit_price_cents) usando el precio actual del producto.
-- Cambios de estado:
-  - De `PENDING` a `PAID`: no modifica stock.
-  - De `PENDING` a `CANCELLED`: repone el stock de los items del pedido dentro de una transacción; la reposición ocurre una sola vez porque solo se permite cambiar desde PENDING.
-- Manejo de errores centralizado: servicios lanzan excepciones de NestJS (BadRequestException, NotFoundException, UnauthorizedException, ForbiddenException) con códigos HTTP correctos.
+- Normaliza respuestas de error para que siempre devuelvan JSON con: `{ statusCode, message, timestamp, path }`.
+- Convierte errores no manejados en `Internal Server Error (500)` y preserva errores HTTP de NestJS (BadRequest, NotFound, Forbidden, etc.).
+- Facilita logging centralizado y evita fugas de stack trace en producción.
 
-## Seguridad
+Documentar el uso del filtro: el filtro se aplica globalmente en `src/main.ts` con `app.useGlobalFilters(new AllExceptionsFilter())`.
 
-- Helmet habilitado (headers de seguridad).
-- CORS habilitado por defecto (ajustable en `src/main.ts`).
-- Endpoints protegidos con JWT; guardias comprueban rol cuando es necesario.
+## Arquitectura y decisiones clave
 
-## Cómo correr (sin Docker)
+Resumen (½ página):
+
+- Transacciones de pedido: la creación de pedidos y la modificación del stock se realizan dentro de una transacción Prisma (`prisma.$transaction`) para garantizar atomicidad. Antes de abrir la transacción se valida stock para fail-fast y dar errores rápidos.
+- Descuento/reposición de stock: al crear un pedido el stock se descuenta inmediatamente y el pedido queda en estado `PENDING`. Si un ADMIN cambia el pedido a `CANCELLED`, el stock se repone dentro de una transacción. `PAID` no modifica stock.
+- Repositorios: cada entidad (Products, Orders, Users) tiene un repositorio (interfaces en `src/*/repository/*`) y una implementación Prisma (`prisma-*.repository.ts`). Esto facilita testeo y potencial cambio de ORM.
+- Guards y autorización: `JwtAuthGuard` protege rutas y extrae `req.user` del token; `AdminGuard` usa el `role` para restringir endpoints administrativos. Los cheques adicionales de propiedad (por ejemplo en `GET /orders/:id`) se realizan en controladores.
+- DTOs y validación: DTOs usan `class-validator` y `ValidationPipe` (configurado en `main.ts`) para validar y transformar payloads entrantes.
+- Swagger: `@nestjs/swagger` con decoradores en controladores expone la documentación en `/docs` automáticamente.
+- Tests: unit tests (Jest) para `ProductsService` y `OrdersService`. Tests e2e usan `FakePrismaService` para evitar dependencia de Postgres en CI local.
+
+Decisiones de diseño relevantes
+
+- Validación doble en update: el servicio valida existencia y además verifica que la operación de update devuelva un resultado (cubre condiciones de carrera o repositorios que devuelven null).
+- FakePrismaService: diseñado para emular solo lo necesario en e2e (findMany con filtros básicos, create/update de entidades y transacciones simples con `$transaction(fn)`). Mantener este fake sincronizado con el uso real es clave para tests sólidos.
+
+## Estructura de carpetas (rápida)
+
+- src/auth — autenticación, token service, hashing
+- src/products — controlador, servicio, DTOs, repositorios
+- src/orders — controlador, servicio, DTOs, repositorios
+- src/prisma — PrismaService y módulo para inyección
+- src/users — controlador y servicio de usuarios
+- src/common/filters — `AllExceptionsFilter`
+
+## Cómo correr (local)
 
 1. Instalar dependencias
 
@@ -108,108 +123,109 @@ Swagger UI disponible en `/docs` una vez que la app está corriendo.
 npm ci
 ```
 
-2. Configurar variables de entorno (ejemplo):
+2. Copiar variables de entorno
 
 ```bash
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/ceibus"
-export JWT_SECRET="mi-secreto-super-seguro"
-export JWT_EXPIRES_IN="30m"
-export NODE_ENV="development"
-export PORT=3000
+cp .env.example .env
+# editar .env con valores reales
 ```
 
-3. Crear la base de datos y aplicar migraciones (si usas Prisma Migrate):
+3. Generar Prisma Client y aplicar migraciones (dev)
 
 ```bash
+npm run prisma:generate
 npm run migrate:dev
 ```
 
-4. Ejecutar el seed (opcional pero recomendado para pruebas):
+4. Ejecutar seed (opcional)
 
 ```bash
 npm run seed
 ```
 
-5. Iniciar en modo desarrollo:
+5. Iniciar en modo desarrollo
 
 ```bash
 npm run start:dev
 ```
 
-Luego abrir http://localhost:3000/docs para Swagger.
-
-Notas:
-
-- Si no quieres usar migraciones automáticas, puedes ejecutar `prisma db push` o adaptar según tu flujo.
+Abrir http://localhost:3000/docs para Swagger.
 
 ## Cómo correr con Docker
 
-El repo incluye un `Dockerfile` y `docker-compose.yml` que levantan la API y Postgres.
+1. Revisar `docker-compose.yml` y ajustar variables si hace falta.
 
-1. Copia/edita el `docker-compose.yml` si quieres cambiar credenciales. Por defecto el archivo expone Postgres en el puerto 5433 de la máquina anfitrión y la API en 3000.
-
-2. Levantar los servicios:
+2. Levantar servicios:
 
 ```bash
 docker compose up --build
 ```
 
-3. Acceder a Swagger en http://localhost:3000/docs
-
-Nota sobre secretos en Docker: el `docker-compose.yml` contiene valores de ejemplo para `DATABASE_URL` y `JWT_SECRET` que deben considerarse únicamente para pruebas locales.
-
-Notas importantes sobre el comportamiento del contenedor
-
-- El `docker-entrypoint.sh` (ejecutado por la imagen) ya realiza, por defecto, estos pasos en el arranque:
-
-  1.  `npm run prisma:generate` — generar Prisma client
-  2.  `npm run migrate` — aplicar migraciones (deploy)
-  3.  si no hay migrations, `npm run db:push` — crear esquema
-  4.  `npm run seed` — ejecutar `prisma/seed.js` si existe
-  5.  arrancar la app (`node dist/main.js`)
-
-- Por tanto, si ejecutas `docker compose up --build` la imagen intentará aplicar migraciones y ejecutar el seed automáticamente antes de iniciar la API.
+El `docker-entrypoint.sh` intenta generar Prisma Client, ejecutar migraciones o `db:push` y ejecutar el seed antes de arrancar la app para facilitar pruebas locales.
 
 ## Tests
 
-Ejecutar tests unitarios (Jest):
+Ejecutar tests unitarios:
 
 ```bash
 npm run test
 ```
 
-Los tests incluyen suites mínimas para `ProductsService` y `OrdersService`. Revisa `src/*/*.spec.ts` para detalles.
+Ejecutar e2e (usa FakePrismaService):
 
-## Decisiones clave y atajos (½ página)
+```bash
+npm run test:e2e
+```
 
-- Transacciones de pedido: usé `prisma.$transaction` para asegurar atomicidad entre la creación de `Order`/`OrderItem` y la actualización del stock. Se valida stock antes de abrir la transacción para hacerlo fail-fast y dar errores rápidos.
-- Descuento/restitución de stock: el stock se descuenta al crear el pedido (estado PENDING). Si el pedido es CANCELLED por un ADMIN, el código repone el stock sumando las cantidades de los `OrderItem` dentro de una transacción. PAID no toca stock. La lógica permite evitar doble reposición porque solo está permitido cambiar estado desde PENDING.
-- Estructura de módulos: separé `auth`, `users`, `products`, `orders` y `prisma` en módulos por responsabilidad. Repositorios Prisma implementan interfaces para permitir reemplazo (por ejemplo, si se quisiera cambiar a TypeORM).
-- Seguridad y validaciones: `class-validator` y `ValidationPipe` para DTOs; `helmet` y `CORS` para mitigaciones básicas; JWT con `jsonwebtoken` y un guard personalizado `JwtAuthGuard` que inyecta `JWT_SECRET`.
+## Qué falta / Recomendaciones para pasar el desafío técnico
 
-Atajos/compromisos tomados por tiempo:
+Ver sección siguiente "Comparación con el enunciado".
 
-- El token incluye datos mínimos en el payload (sub, email, role) y no hay refresh tokens (requerido solo access token según enunciado).
-- Manejo de roles sencillo: guardias + cheques en controladores (se pudo extraer a decorators/guards más finos si hubiese más tiempo).
+## Comparación con el enunciado del desafío técnico
 
-## Cómo verificar funcionalidades clave rápidamente
+He revisado el repositorio y lo comparé con el enunciado original. A continuación detallo cobertura y gaps.
 
-1. Registrar / Login
+Cobertura (implementado)
 
-   - POST /auth/login con `admin@local.com`/`adminpass` devuelve access_token.
+- NestJS + TypeScript: sí
+- Prisma con Postgres: sí (schema y migraciones incluidas)
+- Swagger: configurado (expuesto en `/docs`)
+- Entidades: `User`, `Product`, `Order`, `OrderItem` en `prisma/schema.prisma`
+- Auth JWT: registro/login, token con `jsonwebtoken`, bcrypt para hashing
+- Guards: `JwtAuthGuard` y `AdminGuard` implementados
+- DTOs: `class-validator` usado en DTOs y `ValidationPipe` aplicado
+- Repositorios: interfaces y repositorios Prisma (ej. `prisma-order.repository.ts`)
+- Transacciones: creación de pedidos y ajuste de stock en transacción Prisma
+- Error handling: `AllExceptionsFilter` implementado y aplicado
+- Seeds: `prisma/seed.js` con 1 admin, 2 usuarios y 2 productos (IDs fijos)
+- Docker: `Dockerfile`, `docker-compose.yml` y `docker-entrypoint.sh`
+- Scripts npm: start:dev, build, start:prod, migrate, migrate:dev, seed, test
 
-2. CRUD Productos (ADMIN)
+Gaps / mejoras recomendadas (para cumplir 100%)
 
-   - Añadir header `Authorization: Bearer <token>` del admin.
-   - POST /products crea producto.
-   - GET /products lista y filtra.
+1. CI: añadir GitHub Actions (lint + build + test) — recomendado.
+2. Tests: asegurar cobertura mínima con:
+   - Unit tests: `ProductsService` y `OrdersService` (ya hay tests, revisar cobertura y añadir casos faltantes).
+   - E2E: al menos 1 e2e que cubra register/login → crear pedido → cambiar estado (ya hay e2e con FakePrismaService).
+3. Concurrencia en stock: añadir test o manejo para condiciones de carrera (dos pedidos simultáneos que consumen el mismo stock). Opciones: bloqueo optimista o transaccional con checks en SQL.
+4. Documentación adicional: exportar Postman/Insomnia y ejemplos de request/response en README.
+5. Hardening: rate limiting y ajustes de CORS en producción.
 
-3. Crear pedido (USER)
+## Checklist final (entregables)
 
-   - Login con `user1@local.com`/`userpass`, usar su token.
-   - POST /orders con body: { items: [{ product_id: 'product-a', quantity: 2 }] }
-   - Verificar que stock de `product-a` disminuye en 2.
+- [x] Repositorio con código
+- [x] README con pasos para correr (local y Docker), variables y seeds
+- [x] Swagger en `/docs`
+- [x] Scripts npm necesarios
+- [x] Seeds mínimos
+- [x] Tests unitarios y e2e mínimos
 
-4. Cancelar pedido (ADMIN)
-   - Con token admin: PATCH /orders/:id/CANCELLED
-   - Verificar que stock se restituyó.
+---
+
+Si querés, aplico las siguientes mejoras automáticamente:
+
+- Añadir workflow de GitHub Actions básico para CI
+- Añadir tests unitarios faltantes y/o aumentar cobertura
+- Generar colección Postman/Insomnia exportable
+
+Decime qué querés que haga a continuación y lo implemento.

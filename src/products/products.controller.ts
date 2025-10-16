@@ -26,7 +26,7 @@ export class ProductsController {
   @ApiQuery({
     name: 'is_active',
     required: false,
-    description: 'Filtra por estado activo',
+    description: 'Filtra por estado activo (Solo ADMINs)',
     type: Boolean,
   })
   @ApiQuery({
@@ -41,31 +41,35 @@ export class ProductsController {
     @Query('q') q?: string,
     @Query('is_active') isActive?: boolean
   ) {
-    // El filtro `is_active` solo puede ser usado por ADMINs
+    // Si no es admin, solo puede ver productos activos
+    // Si es admin, puede filtrar por activos/inactivos o ver todos
     const isAdmin = req.user?.role === UserRole.ADMIN
-    if (typeof isActive !== 'undefined') {
-      if (!isAdmin && isActive !== true)
-        throw new ForbiddenException('Only admins can filter by is_active')
-    }
     return this.productsService.getAll(q, isAdmin ? isActive : true)
   }
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  async getById(@Param('id') id: string) {
+  async getById(@Req() req: any, @Param('id') id: string) {
+    // Si no es admin, no puede ver productos inactivos
+    if (req.user?.role !== UserRole.ADMIN) {
+      const product = await this.productsService.getById(id)
+      if (!product.isActive) {
+        throw new ForbiddenException('Access to this product is forbidden')
+      }
+    }
     return this.productsService.getById(id)
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Post()
-  async create(@Req() req: any, @Body() dto: CreateProductDto) {
+  async create(@Req() _req: any, @Body() dto: CreateProductDto) {
     return this.productsService.create(dto)
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Patch(':id')
   async updateById(
-    @Req() req: any,
+    @Req() _req: any,
     @Param('id') id: string,
     @Body() dto: UpdateProductDto
   ) {
@@ -74,7 +78,7 @@ export class ProductsController {
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Delete(':id')
-  async delete(@Req() req: any, @Param('id') id: string) {
+  async delete(@Req() _req: any, @Param('id') id: string) {
     return this.productsService.deleteById(id)
   }
 }

@@ -8,9 +8,13 @@ export class AuthService {
   constructor(private userService: UsersService) {}
 
   async register(email: string, password: string) {
+    const SALT_ROUNDS = process.env.BCRYPT_SALT_ROUNDS
+      ? Number(process.env.BCRYPT_SALT_ROUNDS)
+      : 10
+
     const existing = await this.userService.getByEmail(email)
     if (existing) throw new UnauthorizedException('Email already registered')
-    const hash = await bcrypt.hash(password, 10)
+    const hash = await bcrypt.hash(password, SALT_ROUNDS)
     const user = await this.userService.create({ email, passwordHash: hash })
     const token = this.signPayload({
       sub: user.id,
@@ -34,12 +38,12 @@ export class AuthService {
   }
 
   signPayload(payload: any) {
-    const secret = process.env.JWT_SECRET || 'change-me'
-    const expiresIn = process.env.JWT_EXPIRES_IN || '30m'
+    const JWT_SECRET = process.env.JWT_SECRET
+    const EXPIRES_IN = process.env.JWT_EXPIRES_IN || '30m'
     return jwt.sign(
       payload,
-      secret as jwt.Secret,
-      { expiresIn } as jwt.SignOptions
+      JWT_SECRET as jwt.Secret,
+      { expiresIn: EXPIRES_IN } as jwt.SignOptions
     )
   }
 }

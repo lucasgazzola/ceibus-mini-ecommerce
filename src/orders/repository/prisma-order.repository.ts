@@ -29,20 +29,26 @@ export class PrismaOrderRepository implements OrderRepository {
     const productMap = new Map(products.map(p => [p.id, p]))
 
     // Validamos stock antes de abrir la transacción
+    // Validamos el stock y calculamos el total en una sola pasada
+    let totalCents = 0
+
     for (const item of dto.items) {
-      const product = productMap.get(item.product_id)!
+      const product = productMap.get(item.product_id)
+
+      if (!product) {
+        throw new BadRequestException(
+          `Product not found (id: ${item.product_id})`
+        )
+      }
+
       if (product.stock < item.quantity) {
         throw new BadRequestException(
           `Insufficient stock for product "${product.name}" (id: ${product.id})`
         )
       }
-    }
 
-    // Calculamos el total antes de la transacción
-    const totalCents = dto.items.reduce((acc, item) => {
-      const product = productMap.get(item.product_id)!
-      return acc + item.quantity * product.priceCents
-    }, 0)
+      totalCents += item.quantity * product.priceCents
+    }
 
     // Ejecutamos la transacción
     const order = await this.prisma.$transaction(async tx => {
@@ -101,12 +107,12 @@ export class PrismaOrderRepository implements OrderRepository {
     })
   }
 
-  async changeStatus(id: string, newStatus: OrderStatus): Promise<Order> {
-    const order = await this.getById(id)
-    if (!order) throw new NotFoundException('Order not found')
-    if (order.status !== OrderStatus.PENDING)
-      throw new BadRequestException('Only PENDING orders can change status')
-
+  async changeStatus(
+    id: string,
+    order: Order & { items?: OrderItem[] },
+    newStatus: OrderStatus
+  ): Promise<Order> {
+    // En caso de pagar, simplemente actualizar el estado
     if (newStatus === OrderStatus.PAID) {
       return this.prisma.order.update({
         where: { id },

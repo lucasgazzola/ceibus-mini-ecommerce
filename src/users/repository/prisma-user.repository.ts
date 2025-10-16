@@ -20,6 +20,7 @@ export class PrismaUserRepository implements UserRepository {
     return this.prisma.user.create({ data })
   }
 
+  // Retorna el perfil del usuario sin el hash de la contraseña ni la fecha de creación
   async getProfile(
     email: string
   ): Promise<Omit<User, 'passwordHash' | 'createdAt'> | null> {

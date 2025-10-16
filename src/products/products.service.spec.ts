@@ -40,15 +40,39 @@ describe('ProductsService', () => {
     expect(res.id).toBe('1')
     expect(mockProductRepo.getById).toHaveBeenCalled()
   })
+  it('Debería lanzar un error si no encuentra un producto por id', async () => {
+    mockProductRepo.getById.mockResolvedValueOnce(null)
+    await expect(service.getById('999')).rejects.toThrow('Product not found')
+    expect(mockProductRepo.getById).toHaveBeenCalled()
+  })
   it('Debería actualizar un producto por id', async () => {
     const res = await service.updateById('1', { name: 'B' })
     expect(res).toBeDefined()
     expect(res.id).toBe('1')
     expect(mockProductRepo.updateById).toHaveBeenCalled()
   })
+  it('Debería lanzar un error si no encuentra un producto para actualizar', async () => {
+    mockProductRepo.updateById.mockResolvedValueOnce(null)
+    await expect(service.updateById('999', { name: 'B' })).rejects.toThrow(
+      'Product not found'
+    )
+    expect(mockProductRepo.updateById).toHaveBeenCalled()
+  })
   it('Debería eliminar un producto por id', async () => {
     const res = await service.deleteById('1')
     expect(res).toBeUndefined()
     expect(mockProductRepo.deleteById).toHaveBeenCalled()
+  })
+  it('Debería lanzar un error si no encuentra un producto para eliminar', async () => {
+    mockProductRepo.getById.mockResolvedValueOnce(null)
+    await expect(service.deleteById('999')).rejects.toThrow('Product not found')
+    expect(mockProductRepo.getById).toHaveBeenCalled()
+  })
+  it('Debería lanzar un error si el producto ya está inactivo al eliminar', async () => {
+    mockProductRepo.getById.mockResolvedValueOnce({ id: '1', isActive: false })
+    await expect(service.deleteById('1')).rejects.toThrow(
+      'Product already inactive'
+    )
+    expect(mockProductRepo.getById).toHaveBeenCalled()
   })
 })

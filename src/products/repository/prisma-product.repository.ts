@@ -14,7 +14,10 @@ export class PrismaProductRepository implements ProductRepository {
   }
 
   async getAll(q?: string, isActive?: boolean): Promise<Product[]> {
-    const where: any = {}
+    const where: {
+      name?: { contains: string; mode: 'insensitive' }
+      isActive?: boolean
+    } = {}
     if (q) where.name = { contains: q, mode: 'insensitive' }
     if (isActive !== undefined) where.isActive = isActive
     return this.prisma.product.findMany({ where })
