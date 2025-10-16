@@ -67,14 +67,14 @@ describe('E2E unificado - flujos principales', () => {
     const adminBearer = signTokenBearer(admin)
     const userBearer = signTokenBearer(user)
 
-    // user cannot create product -> 403
+    // user no puede crear producto -> 403
     await createProductRequest(app, userBearer, {
       name: 'Forbidden',
       priceCents: 100,
       stock: 1,
     }).expect(403)
 
-    // admin creates limited stock product
+    // admin crea producto con stock 1
     const prodRes = await createProductRequest(app, adminBearer, {
       name: 'Limited',
       priceCents: 200,
@@ -82,7 +82,7 @@ describe('E2E unificado - flujos principales', () => {
     }).expect(201)
     const prod = prodRes.body
 
-    // user tries to order more than stock -> 400
+    // user intenta ordenar más de lo que hay en stock -> 400
     await request(app.getHttpServer())
       .post('/orders')
       .set('Authorization', userBearer)
