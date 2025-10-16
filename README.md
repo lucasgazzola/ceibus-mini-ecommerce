@@ -104,6 +104,18 @@ El filtro se aplica globalmente en `src/main.ts` con `app.useGlobalFilters(new A
 - src/users — controlador, servicio, DTOs, repositorios
 - src/common/filters — `AllExceptionsFilter`
 
+## Cómo correr con Docker
+
+1. Revisar `docker-compose.yml` y ajustar variables si hace falta.
+
+2. Levantar servicios:
+
+```bash
+docker compose up --build
+```
+
+El `docker-entrypoint.sh` intenta generar Prisma Client, ejecutar migraciones o `db:push` y ejecutar el seed antes de arrancar la app para facilitar pruebas locales.
+
 ## Cómo correr (local)
 
 1. Instalar dependencias
@@ -157,18 +169,6 @@ npm run seed
 ```
 
 El seed usa `upsert` para no duplicar datos cuando se vuelve a ejecutar.
-
-## Cómo correr con Docker
-
-1. Revisar `docker-compose.yml` y ajustar variables si hace falta.
-
-2. Levantar servicios:
-
-```bash
-docker compose up --build
-```
-
-El `docker-entrypoint.sh` intenta generar Prisma Client, ejecutar migraciones o `db:push` y ejecutar el seed antes de arrancar la app para facilitar pruebas locales.
 
 ## Tests
 
